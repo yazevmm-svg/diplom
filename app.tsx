@@ -15,6 +15,7 @@ import {
   Card,
   Tag,
   Upload,
+  Select,
   type TabsProps,
 } from 'antd';
 
@@ -83,6 +84,84 @@ type SourceItem = {
   fileName?: string;
   fileSize?: number;
   fileType?: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  isHidden: boolean;
+  hiddenById?: string;
+  hiddenByName?: string;
+};
+
+type ChecklistStatus = 'not-checked' | 'passed' | 'failed' | 'blocked';
+
+type ChecklistAttachment = {
+  id: string;
+  name: string;
+  type: SourceType;
+  content?: string;
+  file?: File;
+  filePreviewUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
+};
+
+type ChecklistEnvironment = {
+  id: string;
+  name: string;
+};
+
+type ChecklistResolution = {
+  id: string;
+  name: string;
+  environments: ChecklistEnvironment[];
+};
+
+type ChecklistRow = {
+  id: string;
+  number: number;
+  description: string;
+  status: ChecklistStatus;
+  resolutions: ChecklistResolution[];
+  environmentValues: Record<string, string>;
+  bugReportId?: string;
+  bugReportName?: string;
+  attachments: ChecklistAttachment[];
+};
+
+type ChecklistItem = {
+  id: string;
+  projectId: string;
+  name: string;
+  dataType: string;
+  resolutions: ChecklistResolution[];
+  rows: ChecklistRow[];
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  isHidden: boolean;
+  hiddenById?: string;
+  hiddenByName?: string;
+};
+
+type ChecklistColumnKey = 'number' | 'description' | 'status' | 'resolution' | 'bugReport' | 'photos';
+
+type ChecklistColumnWidths = Record<ChecklistColumnKey, number>;
+
+type BugReportStatus = 'new' | 'in-progress' | 'fixed' | 'closed' | 'rejected';
+
+type BugReportPriority = 'low' | 'medium' | 'high' | 'critical';
+
+type BugReportItem = {
+  id: string;
+  projectId: string;
+  name: string;
+  status: BugReportStatus;
+  priority: BugReportPriority;
+  prerequisite: string;
+  stepsDescription: string;
+  expectedResult: string;
+  actualResult: string;
   authorId: string;
   authorName: string;
   createdAt: string;
@@ -183,11 +262,76 @@ const initialLinks: LinkItem[] = [
   },
 ];
 
+const initialChecklists: ChecklistItem[] = [
+  {
+    id: 'checklist-1',
+    projectId: 'project-1',
+    name: 'Проверка стартовой страницы',
+    dataType: 'Чек-лист',
+    resolutions: [
+      {
+        id: 'resolution-1',
+        name: '',
+        environments: [
+          { id: 'environment-1', name: '' },
+          { id: 'environment-2', name: '' },
+        ],
+      },
+    ],
+    rows: [
+      {
+        id: 'row-1',
+        number: 1,
+        description: '',
+        status: 'not-checked',
+        resolutions: [
+          {
+            id: 'row-1-resolution-1',
+            name: '',
+            environments: [
+              { id: 'row-1-environment-1', name: '' },
+              { id: 'row-1-environment-2', name: '' },
+            ],
+          },
+        ],
+        environmentValues: {},
+        bugReportId: undefined,
+        bugReportName: undefined,
+        attachments: [],
+      },
+    ],
+    authorId: 'user-1',
+    authorName: 'Иванов И. И.',
+    createdAt: '15.05.2026',
+    isHidden: false,
+  },
+];
+
+const initialBugReports: BugReportItem[] = [
+  {
+    id: 'bug-report-1',
+    projectId: 'project-1',
+    name: 'Ошибка отображения стартовой страницы',
+    status: 'new',
+    priority: 'medium',
+    prerequisite: '',
+    stepsDescription: '',
+    expectedResult: '',
+    actualResult: '',
+    authorId: 'user-1',
+    authorName: 'Иванов И. И.',
+    createdAt: '15.05.2026',
+    isHidden: false,
+  },
+];
+
 const App: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
   const [allProjects, setAllProjects] = useState<Project[]>(initialProjects);
   const [sources, setSources] = useState<SourceItem[]>(initialSources);
   const [links, setLinks] = useState<LinkItem[]>(initialLinks);
+  const [checklists, setChecklists] = useState<ChecklistItem[]>(initialChecklists);
+  const [bugReports, setBugReports] = useState<BugReportItem[]>(initialBugReports);
 
   const [currentUser, setCurrentUser] = useState<Account | null>(null);
 
@@ -227,6 +371,38 @@ const App: React.FC = () => {
   const [linkName, setLinkName] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
 
+  const [isChecklistModalVisible, setIsChecklistModalVisible] = useState(false);
+  const [checklistName, setChecklistName] = useState('');
+  const [checklistDataType, setChecklistDataType] = useState('Чек-лист');
+  const [expandedChecklistIds, setExpandedChecklistIds] = useState<string[]>([]);
+  const [selectedChecklistIdForPhoto, setSelectedChecklistIdForPhoto] = useState<string | null>(null);
+  const [selectedChecklistRowIdForPhoto, setSelectedChecklistRowIdForPhoto] = useState<string | null>(null);
+  const [isChecklistPhotoChoiceModalVisible, setIsChecklistPhotoChoiceModalVisible] = useState(false);
+  const [isChecklistComputerPhotoModalVisible, setIsChecklistComputerPhotoModalVisible] = useState(false);
+  const [isChecklistSourcePhotoModalVisible, setIsChecklistSourcePhotoModalVisible] = useState(false);
+  const [selectedChecklistPhotoFile, setSelectedChecklistPhotoFile] = useState<File | null>(null);
+
+  const [isBugReportModalVisible, setIsBugReportModalVisible] = useState(false);
+  const [bugReportName, setBugReportName] = useState('');
+  const [bugReportStatus, setBugReportStatus] = useState<BugReportStatus>('new');
+  const [bugReportPriority, setBugReportPriority] = useState<BugReportPriority>('medium');
+  const [bugReportPrerequisite, setBugReportPrerequisite] = useState('');
+  const [bugReportStepsDescription, setBugReportStepsDescription] = useState('');
+  const [bugReportExpectedResult, setBugReportExpectedResult] = useState('');
+  const [bugReportActualResult, setBugReportActualResult] = useState('');
+  const [expandedBugReportIds, setExpandedBugReportIds] = useState<string[]>([]);
+  const [selectedChecklistIdForBugReport, setSelectedChecklistIdForBugReport] = useState<string | null>(null);
+  const [selectedChecklistRowIdForBugReport, setSelectedChecklistRowIdForBugReport] = useState<string | null>(null);
+  const [isChecklistBugReportModalVisible, setIsChecklistBugReportModalVisible] = useState(false);
+  const [checklistColumnWidths, setChecklistColumnWidths] = useState<ChecklistColumnWidths>({
+    number: 64,
+    description: 560,
+    status: 190,
+    resolution: 560,
+    bugReport: 210,
+    photos: 260,
+  });
+
   const userProjects = currentUser
     ? allProjects.filter((project) =>
         project.users.some((user) => user.id === currentUser.id)
@@ -257,6 +433,26 @@ const App: React.FC = () => {
       })
     : [];
 
+  const activeProjectChecklists = activeProject
+    ? checklists.filter((checklist) => {
+        if (checklist.projectId !== activeProject.id) return false;
+        if (isAdmin) return true;
+        return !checklist.isHidden;
+      })
+    : [];
+
+  const activeProjectBugReports = activeProject
+    ? bugReports.filter((bugReport) => {
+        if (bugReport.projectId !== activeProject.id) return false;
+        if (isAdmin) return true;
+        return !bugReport.isHidden;
+      })
+    : [];
+
+  const activeProjectPhotoSources = activeProjectSources.filter(
+    (source) => source.type === 'file' && source.fileType?.startsWith('image/')
+  );
+
   useEffect(() => {
     if (userProjects.length > 0 && !userProjects.some((project) => project.id === activeProjectId)) {
       setActiveProjectId(userProjects[0].id);
@@ -265,7 +461,7 @@ const App: React.FC = () => {
     if (userProjects.length === 0) {
       setActiveProjectId('');
     }
-  }, [currentUser, allProjects, activeProjectId]);
+  }, [currentUser, allProjects, activeProjectId, userProjects]);
 
   const getCurrentDate = () => {
     return new Date().toLocaleDateString('ru-RU');
@@ -280,6 +476,14 @@ const App: React.FC = () => {
     return (size / 1024 / 1024).toFixed(2) + ' МБ';
   };
 
+  const getShortText = (text?: string) => {
+    if (!text) return '';
+
+    if (text.length <= 200) return text;
+
+    return text.slice(0, 200) + '...';
+  };
+
   const normalizeUrl = (url: string) => {
     const trimmedUrl = url.trim();
 
@@ -289,6 +493,34 @@ const App: React.FC = () => {
 
     return 'https://' + trimmedUrl;
   };
+
+  const checklistStatusOptions: { value: ChecklistStatus; label: string }[] = [
+    { value: 'not-checked', label: 'Не проверено' },
+    { value: 'passed', label: 'Пройдено' },
+    { value: 'failed', label: 'Ошибка' },
+    { value: 'blocked', label: 'Заблокировано' },
+  ];
+
+  const bugReportStatusOptions: { value: BugReportStatus; label: string }[] = [
+    { value: 'new', label: 'Новый' },
+    { value: 'in-progress', label: 'В работе' },
+    { value: 'fixed', label: 'Исправлен' },
+    { value: 'closed', label: 'Закрыт' },
+    { value: 'rejected', label: 'Отклонён' },
+  ];
+
+  const bugReportPriorityOptions: { value: BugReportPriority; label: string }[] = [
+    { value: 'low', label: 'Низкий' },
+    { value: 'medium', label: 'Средний' },
+    { value: 'high', label: 'Высокий' },
+    { value: 'critical', label: 'Критический' },
+  ];
+
+  const getBugReportStatusLabel = (status: BugReportStatus) =>
+    bugReportStatusOptions.find((option) => option.value === status)?.label || status;
+
+  const getBugReportPriorityLabel = (priority: BugReportPriority) =>
+    bugReportPriorityOptions.find((option) => option.value === priority)?.label || priority;
 
   const handleLogin = () => {
     const foundAccount = accounts.find(
@@ -321,6 +553,11 @@ const App: React.FC = () => {
       return;
     }
 
+    if (registerName.trim().length > 20) {
+      message.error('Имя пользователя не должно превышать 20 символов');
+      return;
+    }
+
     if (accounts.some((account) => account.name === registerName.trim())) {
       message.error('Пользователь с таким именем уже существует');
       return;
@@ -342,8 +579,7 @@ const App: React.FC = () => {
 
     message.success('Аккаунт создан');
   };
-
-  const handleLogout = () => {
+    const handleLogout = () => {
     setCurrentUser(null);
     setActiveProjectId('');
     setSelectedMenuKey('1');
@@ -370,6 +606,11 @@ const App: React.FC = () => {
   const handleSaveNewName = () => {
     if (!editName.trim() || !currentUser) {
       message.error('Введите имя');
+      return;
+    }
+
+    if (editName.trim().length > 20) {
+      message.error('Имя пользователя не должно превышать 20 символов');
       return;
     }
 
@@ -412,6 +653,26 @@ const App: React.FC = () => {
           : link.hiddenById === currentUser.id
             ? { ...link, hiddenByName: updatedName }
             : link
+      )
+    );
+
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.authorId === currentUser.id
+          ? { ...checklist, authorName: updatedName }
+          : checklist.hiddenById === currentUser.id
+            ? { ...checklist, hiddenByName: updatedName }
+            : checklist
+      )
+    );
+
+    setBugReports((prevBugReports) =>
+      prevBugReports.map((bugReport) =>
+        bugReport.authorId === currentUser.id
+          ? { ...bugReport, authorName: updatedName }
+          : bugReport.hiddenById === currentUser.id
+            ? { ...bugReport, hiddenByName: updatedName }
+            : bugReport
       )
     );
 
@@ -589,6 +850,23 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadTextSource = (source: SourceItem) => {
+    if (source.type !== 'text') return;
+
+    const fileText = source.content || '';
+    const blob = new Blob([fileText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `${source.name || 'text-document'}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
+
   const handlePreviewSourceFile = (source: SourceItem) => {
     if (source.type !== 'file') return;
 
@@ -600,7 +878,15 @@ const App: React.FC = () => {
     setPreviewSource(source);
     setIsPreviewModalVisible(true);
   };
-    const handleHideSource = (sourceId: string) => {
+
+  const handlePreviewTextSource = (source: SourceItem) => {
+    if (source.type !== 'text') return;
+
+    setPreviewSource(source);
+    setIsPreviewModalVisible(true);
+  };
+
+  const handleHideSource = (sourceId: string) => {
     if (!currentUser) return;
 
     const selectedSource = sources.find((source) => source.id === sourceId);
@@ -758,8 +1044,7 @@ const App: React.FC = () => {
       },
     });
   };
-
-  const handleRestoreLink = (linkId: string) => {
+    const handleRestoreLink = (linkId: string) => {
     const selectedLink = links.find((link) => link.id === linkId);
 
     if (!selectedLink) return;
@@ -849,6 +1134,14 @@ const App: React.FC = () => {
 
         setLinks((prevLinks) =>
           prevLinks.filter((link) => link.projectId !== activeProject.id)
+        );
+
+        setChecklists((prevChecklists) =>
+          prevChecklists.filter((checklist) => checklist.projectId !== activeProject.id)
+        );
+
+        setBugReports((prevBugReports) =>
+          prevBugReports.filter((bugReport) => bugReport.projectId !== activeProject.id)
         );
 
         setSelectedMenuKey('1');
@@ -985,6 +1278,953 @@ const App: React.FC = () => {
     });
   };
 
+  const resetChecklistCreateForm = () => {
+    setChecklistName('');
+    setChecklistDataType('Чек-лист');
+  };
+
+  const createEmptyChecklistRow = (number: number): ChecklistRow => ({
+    id: 'row-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+    number,
+    description: '',
+    status: 'not-checked',
+    resolutions: [createEmptyChecklistResolution()],
+    environmentValues: {},
+    bugReportId: undefined,
+    bugReportName: undefined,
+    attachments: [],
+  });
+
+  const createEmptyChecklistResolution = (): ChecklistResolution => ({
+    id: 'resolution-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+    name: '',
+    environments: [
+      {
+        id: 'environment-' + Date.now() + '-1-' + Math.random().toString(16).slice(2),
+        name: '',
+      },
+      {
+        id: 'environment-' + Date.now() + '-2-' + Math.random().toString(16).slice(2),
+        name: '',
+      },
+    ],
+  });
+
+  const handleCreateChecklist = () => {
+    if (!currentUser || !activeProject) return;
+
+    if (!checklistName.trim()) {
+      message.error('Введите название чек-листа');
+      return;
+    }
+
+    const newChecklist: ChecklistItem = {
+      id: 'checklist-' + Date.now(),
+      projectId: activeProject.id,
+      name: checklistName.trim(),
+      dataType: checklistDataType.trim() || 'Чек-лист',
+      resolutions: [createEmptyChecklistResolution()],
+      rows: [createEmptyChecklistRow(1)],
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      createdAt: getCurrentDate(),
+      isHidden: false,
+    };
+
+    setChecklists([...checklists, newChecklist]);
+    setExpandedChecklistIds([...expandedChecklistIds, newChecklist.id]);
+    resetChecklistCreateForm();
+    setIsChecklistModalVisible(false);
+    message.success('Чек-лист создан');
+  };
+
+  const toggleChecklistExpanded = (checklistId: string) => {
+    setExpandedChecklistIds((prevIds) =>
+      prevIds.includes(checklistId)
+        ? prevIds.filter((id) => id !== checklistId)
+        : [...prevIds, checklistId]
+    );
+  };
+
+  const handleUpdateChecklistRowDescription = (
+    checklistId: string,
+    rowId: string,
+    value: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId ? { ...row, description: value } : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleUpdateChecklistRowStatus = (
+    checklistId: string,
+    rowId: string,
+    status: ChecklistStatus
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId ? { ...row, status } : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleMoveChecklist = (checklistId: string, direction: 'up' | 'down') => {
+    setChecklists((prevChecklists) => {
+      const currentIndex = prevChecklists.findIndex((checklist) => checklist.id === checklistId);
+
+      if (currentIndex === -1) return prevChecklists;
+
+      const currentChecklist = prevChecklists[currentIndex];
+      const step = direction === 'up' ? -1 : 1;
+      let swapIndex = currentIndex + step;
+
+      while (swapIndex >= 0 && swapIndex < prevChecklists.length) {
+        if (prevChecklists[swapIndex].projectId === currentChecklist.projectId) {
+          const updatedChecklists = [...prevChecklists];
+          [updatedChecklists[currentIndex], updatedChecklists[swapIndex]] = [
+            updatedChecklists[swapIndex],
+            updatedChecklists[currentIndex],
+          ];
+          return updatedChecklists;
+        }
+
+        swapIndex += step;
+      }
+
+      return prevChecklists;
+    });
+  };
+
+  const handleMoveChecklistRow = (checklistId: string, rowId: string, direction: 'up' | 'down') => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) => {
+        if (checklist.id !== checklistId) return checklist;
+
+        const currentIndex = checklist.rows.findIndex((row) => row.id === rowId);
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+        if (currentIndex === -1 || targetIndex < 0 || targetIndex >= checklist.rows.length) {
+          return checklist;
+        }
+
+        const updatedRows = [...checklist.rows];
+        [updatedRows[currentIndex], updatedRows[targetIndex]] = [
+          updatedRows[targetIndex],
+          updatedRows[currentIndex],
+        ];
+
+        return {
+          ...checklist,
+          rows: updatedRows.map((row, index) => ({ ...row, number: index + 1 })),
+        };
+      })
+    );
+  };
+
+  const handleUpdateChecklistEnvironmentValue = (
+    checklistId: string,
+    rowId: string,
+    environmentId: string,
+    value: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      environmentValues: {
+                        ...row.environmentValues,
+                        [environmentId]: value,
+                      },
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleUpdateChecklistResolutionName = (
+    checklistId: string,
+    rowId: string,
+    resolutionId: string,
+    value: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      resolutions: row.resolutions.map((resolution) =>
+                        resolution.id === resolutionId ? { ...resolution, name: value } : resolution
+                      ),
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleUpdateChecklistEnvironmentName = (
+    checklistId: string,
+    rowId: string,
+    resolutionId: string,
+    environmentId: string,
+    value: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      resolutions: row.resolutions.map((resolution) =>
+                        resolution.id === resolutionId
+                          ? {
+                              ...resolution,
+                              environments: resolution.environments.map((environment) =>
+                                environment.id === environmentId
+                                  ? { ...environment, name: value }
+                                  : environment
+                              ),
+                            }
+                          : resolution
+                      ),
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleAddChecklistEnvironment = (
+    checklistId: string,
+    rowId: string,
+    resolutionId: string
+  ) => {
+    const newEnvironment: ChecklistEnvironment = {
+      id: 'environment-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+      name: '',
+    };
+
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      resolutions: row.resolutions.map((resolution) =>
+                        resolution.id === resolutionId
+                          ? {
+                              ...resolution,
+                              environments: [...resolution.environments, newEnvironment],
+                            }
+                          : resolution
+                      ),
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleAddChecklistResolution = (checklistId: string, rowId: string) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      resolutions: [...row.resolutions, createEmptyChecklistResolution()],
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleAddChecklistRow = (checklistId: string) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: [...checklist.rows, createEmptyChecklistRow(checklist.rows.length + 1)],
+            }
+          : checklist
+      )
+    );
+  };
+
+
+  const handleDeleteChecklistRow = (checklistId: string, rowId: string) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) => {
+        if (checklist.id !== checklistId) return checklist;
+
+        const updatedRows = checklist.rows
+          .filter((row) => row.id !== rowId)
+          .map((row, index) => ({ ...row, number: index + 1 }));
+
+        return {
+          ...checklist,
+          rows: updatedRows.length > 0 ? updatedRows : [createEmptyChecklistRow(1)],
+        };
+      })
+    );
+  };
+
+  const handleDeleteChecklistResolution = (
+    checklistId: string,
+    rowId: string,
+    resolutionId: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      resolutions: row.resolutions.filter(
+                        (resolution) => resolution.id !== resolutionId
+                      ),
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleDeleteChecklistEnvironment = (
+    checklistId: string,
+    rowId: string,
+    resolutionId: string,
+    environmentId: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) => {
+                if (row.id !== rowId) return row;
+
+                const updatedEnvironmentValues = { ...row.environmentValues };
+                delete updatedEnvironmentValues[environmentId];
+
+                return {
+                  ...row,
+                  environmentValues: updatedEnvironmentValues,
+                  resolutions: row.resolutions.map((resolution) =>
+                    resolution.id === resolutionId
+                      ? {
+                          ...resolution,
+                          environments: resolution.environments.filter(
+                            (environment) => environment.id !== environmentId
+                          ),
+                        }
+                      : resolution
+                  ),
+                };
+              }),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleDeleteChecklistAttachment = (
+    checklistId: string,
+    rowId: string,
+    attachmentId: string
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      attachments: row.attachments.filter(
+                        (attachment) => attachment.id !== attachmentId
+                      ),
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const openChecklistPhotoChoiceModal = (checklistId: string, rowId: string) => {
+    setSelectedChecklistIdForPhoto(checklistId);
+    setSelectedChecklistRowIdForPhoto(rowId);
+    setSelectedChecklistPhotoFile(null);
+    setIsChecklistPhotoChoiceModalVisible(true);
+  };
+
+  const openComputerPhotoModal = () => {
+    setSelectedChecklistPhotoFile(null);
+    setIsChecklistPhotoChoiceModalVisible(false);
+    setIsChecklistComputerPhotoModalVisible(true);
+  };
+
+  const openSourcePhotoModal = () => {
+    setIsChecklistPhotoChoiceModalVisible(false);
+    setIsChecklistSourcePhotoModalVisible(true);
+  };
+
+  const closeChecklistPhotoModals = () => {
+    setSelectedChecklistIdForPhoto(null);
+    setSelectedChecklistRowIdForPhoto(null);
+    setSelectedChecklistPhotoFile(null);
+    setIsChecklistPhotoChoiceModalVisible(false);
+    setIsChecklistComputerPhotoModalVisible(false);
+    setIsChecklistSourcePhotoModalVisible(false);
+  };
+
+  const handleAddChecklistPhotoFromComputer = () => {
+    if (!selectedChecklistIdForPhoto || !selectedChecklistRowIdForPhoto || !selectedChecklistPhotoFile) {
+      message.error('Выберите фотографию');
+      return;
+    }
+
+    const newAttachment: ChecklistAttachment = {
+      id: 'attachment-' + Date.now(),
+      name: selectedChecklistPhotoFile.name,
+      type: 'file',
+      file: selectedChecklistPhotoFile,
+      filePreviewUrl: URL.createObjectURL(selectedChecklistPhotoFile),
+      fileName: selectedChecklistPhotoFile.name,
+      fileSize: selectedChecklistPhotoFile.size,
+      fileType: selectedChecklistPhotoFile.type || 'image/*',
+    };
+
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === selectedChecklistIdForPhoto
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === selectedChecklistRowIdForPhoto
+                  ? { ...row, attachments: [...row.attachments, newAttachment] }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+
+    closeChecklistPhotoModals();
+    message.success('Фотография добавлена в чек-лист');
+  };
+
+  const handleAddChecklistPhotoFromSource = (source: SourceItem) => {
+    if (!selectedChecklistIdForPhoto || !selectedChecklistRowIdForPhoto) return;
+
+    const newAttachment: ChecklistAttachment = {
+      id: 'attachment-' + Date.now(),
+      name: source.fileName || source.name,
+      type: source.type,
+      content: source.content,
+      file: source.file,
+      filePreviewUrl: source.filePreviewUrl,
+      fileName: source.fileName,
+      fileSize: source.fileSize,
+      fileType: source.fileType,
+    };
+
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === selectedChecklistIdForPhoto
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === selectedChecklistRowIdForPhoto
+                  ? { ...row, attachments: [...row.attachments, newAttachment] }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+
+    closeChecklistPhotoModals();
+    message.success('Фотография из источников добавлена');
+  };
+
+  const handlePreviewChecklistAttachment = (attachment: ChecklistAttachment) => {
+    setPreviewSource({
+      id: attachment.id,
+      projectId: activeProject?.id || '',
+      name: attachment.name,
+      type: attachment.type,
+      content: attachment.content,
+      file: attachment.file,
+      filePreviewUrl: attachment.filePreviewUrl,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      fileType: attachment.fileType,
+      authorId: currentUser?.id || '',
+      authorName: currentUser?.name || '',
+      createdAt: getCurrentDate(),
+      isHidden: false,
+    });
+    setIsPreviewModalVisible(true);
+  };
+
+  const handleHideChecklist = (checklistId: string) => {
+    if (!currentUser) return;
+
+    const selectedChecklist = checklists.find((checklist) => checklist.id === checklistId);
+
+    if (!selectedChecklist) return;
+
+    Modal.confirm({
+      title: 'Скрыть чек-лист?',
+      content:
+        'Чек-лист "' +
+        selectedChecklist.name +
+        '" будет скрыт для обычных пользователей. Администратор сможет его вернуть.',
+      okText: 'Скрыть',
+      cancelText: 'Отмена',
+
+      onOk: () => {
+        setChecklists((prevChecklists) =>
+          prevChecklists.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  isHidden: true,
+                  hiddenById: currentUser.id,
+                  hiddenByName: currentUser.name,
+                }
+              : checklist
+          )
+        );
+
+        message.success('Чек-лист скрыт');
+      },
+    });
+  };
+
+  const handleRestoreChecklist = (checklistId: string) => {
+    const selectedChecklist = checklists.find((checklist) => checklist.id === checklistId);
+
+    if (!selectedChecklist) return;
+
+    Modal.confirm({
+      title: 'Вернуть чек-лист?',
+      content: 'Чек-лист "' + selectedChecklist.name + '" снова станет доступен пользователям.',
+      okText: 'Вернуть',
+      cancelText: 'Отмена',
+
+      onOk: () => {
+        setChecklists((prevChecklists) =>
+          prevChecklists.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  isHidden: false,
+                  hiddenById: undefined,
+                  hiddenByName: undefined,
+                }
+              : checklist
+          )
+        );
+
+        message.success('Чек-лист восстановлен');
+      },
+    });
+  };
+
+  const handleDeleteChecklist = (checklistId: string) => {
+    if (!isAdmin) {
+      message.error('Удалять чек-листы может только администратор');
+      return;
+    }
+
+    const selectedChecklist = checklists.find((checklist) => checklist.id === checklistId);
+
+    if (!selectedChecklist) return;
+
+    Modal.confirm({
+      title: 'Удалить чек-лист?',
+      content: 'Чек-лист "' + selectedChecklist.name + '" будет удалён окончательно.',
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okType: 'danger',
+
+      onOk: () => {
+        setChecklists((prevChecklists) =>
+          prevChecklists.filter((checklist) => checklist.id !== checklistId)
+        );
+
+        message.success('Чек-лист удалён');
+      },
+    });
+  };
+
+  const resetBugReportCreateForm = () => {
+    setBugReportName('');
+    setBugReportStatus('new');
+    setBugReportPriority('medium');
+    setBugReportPrerequisite('');
+    setBugReportStepsDescription('');
+    setBugReportExpectedResult('');
+    setBugReportActualResult('');
+  };
+
+  const openBugReportCreateModal = (checklistId?: string, rowId?: string) => {
+    if (checklistId && rowId) {
+      setSelectedChecklistIdForBugReport(checklistId);
+      setSelectedChecklistRowIdForBugReport(rowId);
+      setIsChecklistBugReportModalVisible(false);
+    } else {
+      setSelectedChecklistIdForBugReport(null);
+      setSelectedChecklistRowIdForBugReport(null);
+    }
+
+    resetBugReportCreateForm();
+    setIsBugReportModalVisible(true);
+  };
+
+  const closeBugReportCreateModal = () => {
+    setIsBugReportModalVisible(false);
+    setSelectedChecklistIdForBugReport(null);
+    setSelectedChecklistRowIdForBugReport(null);
+    resetBugReportCreateForm();
+  };
+
+  const attachBugReportToChecklistRow = (
+    checklistId: string,
+    rowId: string,
+    bugReport: BugReportItem
+  ) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? {
+                      ...row,
+                      bugReportId: bugReport.id,
+                      bugReportName: bugReport.name,
+                    }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const handleCreateBugReport = () => {
+    if (!currentUser || !activeProject) return;
+
+    if (!bugReportName.trim()) {
+      message.error('Введите название баг-репорта');
+      return;
+    }
+
+    const newBugReport: BugReportItem = {
+      id: 'bug-report-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+      projectId: activeProject.id,
+      name: bugReportName.trim(),
+      status: bugReportStatus,
+      priority: bugReportPriority,
+      prerequisite: bugReportPrerequisite,
+      stepsDescription: bugReportStepsDescription,
+      expectedResult: bugReportExpectedResult,
+      actualResult: bugReportActualResult,
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      createdAt: getCurrentDate(),
+      isHidden: false,
+    };
+
+    setBugReports((prevBugReports) => [...prevBugReports, newBugReport]);
+    setExpandedBugReportIds((prevIds) => [...prevIds, newBugReport.id]);
+
+    if (selectedChecklistIdForBugReport && selectedChecklistRowIdForBugReport) {
+      attachBugReportToChecklistRow(
+        selectedChecklistIdForBugReport,
+        selectedChecklistRowIdForBugReport,
+        newBugReport
+      );
+      message.success('Баг-репорт создан и прикреплён к чек-листу');
+    } else {
+      message.success('Баг-репорт создан');
+    }
+
+    closeBugReportCreateModal();
+  };
+
+  const toggleBugReportExpanded = (bugReportId: string) => {
+    setExpandedBugReportIds((prevIds) =>
+      prevIds.includes(bugReportId)
+        ? prevIds.filter((id) => id !== bugReportId)
+        : [...prevIds, bugReportId]
+    );
+  };
+
+  const handleMoveBugReport = (bugReportId: string, direction: 'up' | 'down') => {
+    setBugReports((prevBugReports) => {
+      const currentIndex = prevBugReports.findIndex((bugReport) => bugReport.id === bugReportId);
+
+      if (currentIndex === -1) return prevBugReports;
+
+      const currentBugReport = prevBugReports[currentIndex];
+      const step = direction === 'up' ? -1 : 1;
+      let swapIndex = currentIndex + step;
+
+      while (swapIndex >= 0 && swapIndex < prevBugReports.length) {
+        if (prevBugReports[swapIndex].projectId === currentBugReport.projectId) {
+          const updatedBugReports = [...prevBugReports];
+          [updatedBugReports[currentIndex], updatedBugReports[swapIndex]] = [
+            updatedBugReports[swapIndex],
+            updatedBugReports[currentIndex],
+          ];
+          return updatedBugReports;
+        }
+
+        swapIndex += step;
+      }
+
+      return prevBugReports;
+    });
+  };
+
+  const handleUpdateBugReportField = <K extends keyof BugReportItem>(
+    bugReportId: string,
+    field: K,
+    value: BugReportItem[K]
+  ) => {
+    setBugReports((prevBugReports) =>
+      prevBugReports.map((bugReport) =>
+        bugReport.id === bugReportId ? { ...bugReport, [field]: value } : bugReport
+      )
+    );
+
+    if (field === 'name') {
+      const nextName = String(value);
+      setChecklists((prevChecklists) =>
+        prevChecklists.map((checklist) => ({
+          ...checklist,
+          rows: checklist.rows.map((row) =>
+            row.bugReportId === bugReportId ? { ...row, bugReportName: nextName } : row
+          ),
+        }))
+      );
+    }
+  };
+
+  const handleHideBugReport = (bugReportId: string) => {
+    if (!currentUser) return;
+
+    const selectedBugReport = bugReports.find((bugReport) => bugReport.id === bugReportId);
+
+    if (!selectedBugReport) return;
+
+    Modal.confirm({
+      title: 'Скрыть баг-репорт?',
+      content:
+        'Баг-репорт "' +
+        selectedBugReport.name +
+        '" будет скрыт для обычных пользователей. Администратор сможет его вернуть.',
+      okText: 'Скрыть',
+      cancelText: 'Отмена',
+
+      onOk: () => {
+        setBugReports((prevBugReports) =>
+          prevBugReports.map((bugReport) =>
+            bugReport.id === bugReportId
+              ? {
+                  ...bugReport,
+                  isHidden: true,
+                  hiddenById: currentUser.id,
+                  hiddenByName: currentUser.name,
+                }
+              : bugReport
+          )
+        );
+
+        message.success('Баг-репорт скрыт');
+      },
+    });
+  };
+
+  const handleRestoreBugReport = (bugReportId: string) => {
+    const selectedBugReport = bugReports.find((bugReport) => bugReport.id === bugReportId);
+
+    if (!selectedBugReport) return;
+
+    Modal.confirm({
+      title: 'Вернуть баг-репорт?',
+      content: 'Баг-репорт "' + selectedBugReport.name + '" снова станет доступен пользователям.',
+      okText: 'Вернуть',
+      cancelText: 'Отмена',
+
+      onOk: () => {
+        setBugReports((prevBugReports) =>
+          prevBugReports.map((bugReport) =>
+            bugReport.id === bugReportId
+              ? {
+                  ...bugReport,
+                  isHidden: false,
+                  hiddenById: undefined,
+                  hiddenByName: undefined,
+                }
+              : bugReport
+          )
+        );
+
+        message.success('Баг-репорт восстановлен');
+      },
+    });
+  };
+
+  const handleDeleteBugReport = (bugReportId: string) => {
+    if (!isAdmin) {
+      message.error('Удалять баг-репорты может только администратор');
+      return;
+    }
+
+    const selectedBugReport = bugReports.find((bugReport) => bugReport.id === bugReportId);
+
+    if (!selectedBugReport) return;
+
+    Modal.confirm({
+      title: 'Удалить баг-репорт?',
+      content: 'Баг-репорт "' + selectedBugReport.name + '" будет удалён окончательно.',
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okType: 'danger',
+
+      onOk: () => {
+        setBugReports((prevBugReports) =>
+          prevBugReports.filter((bugReport) => bugReport.id !== bugReportId)
+        );
+
+        setChecklists((prevChecklists) =>
+          prevChecklists.map((checklist) => ({
+            ...checklist,
+            rows: checklist.rows.map((row) =>
+              row.bugReportId === bugReportId
+                ? { ...row, bugReportId: undefined, bugReportName: undefined }
+                : row
+            ),
+          }))
+        );
+
+        message.success('Баг-репорт удалён');
+      },
+    });
+  };
+
+  const openChecklistBugReportModal = (checklistId: string, rowId: string) => {
+    setSelectedChecklistIdForBugReport(checklistId);
+    setSelectedChecklistRowIdForBugReport(rowId);
+    setIsChecklistBugReportModalVisible(true);
+  };
+
+  const closeChecklistBugReportModal = () => {
+    setSelectedChecklistIdForBugReport(null);
+    setSelectedChecklistRowIdForBugReport(null);
+    setIsChecklistBugReportModalVisible(false);
+  };
+
+  const handleAttachExistingBugReport = (bugReport: BugReportItem) => {
+    if (!selectedChecklistIdForBugReport || !selectedChecklistRowIdForBugReport) return;
+
+    attachBugReportToChecklistRow(
+      selectedChecklistIdForBugReport,
+      selectedChecklistRowIdForBugReport,
+      bugReport
+    );
+
+    closeChecklistBugReportModal();
+    message.success('Баг-репорт прикреплён');
+  };
+
+  const handleDetachBugReportFromChecklistRow = (checklistId: string, rowId: string) => {
+    setChecklists((prevChecklists) =>
+      prevChecklists.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              rows: checklist.rows.map((row) =>
+                row.id === rowId
+                  ? { ...row, bugReportId: undefined, bugReportName: undefined }
+                  : row
+              ),
+            }
+          : checklist
+      )
+    );
+  };
+
+  const openBugReportFromChecklist = (bugReportId?: string) => {
+    if (!bugReportId) return;
+
+    setSelectedMenuKey('2');
+    setExpandedBugReportIds((prevIds) =>
+      prevIds.includes(bugReportId) ? prevIds : [...prevIds, bugReportId]
+    );
+  };
+
   const tabItems: TabsProps['items'] = userProjects.map((project) => ({
     key: project.id,
     label: project.name,
@@ -1074,7 +2314,7 @@ const App: React.FC = () => {
                     alignItems: 'flex-start',
                   }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <Space style={{ marginBottom: 8 }}>
                       <Tag color={source.type === 'text' ? 'blue' : 'green'}>
                         {source.type === 'text' ? 'Текстовый документ' : 'Файл'}
@@ -1085,7 +2325,14 @@ const App: React.FC = () => {
                       )}
                     </Space>
 
-                    <Title level={4} style={{ margin: 0, color: '#1f2937' }}>
+                    <Title
+                      level={4}
+                      style={{
+                        margin: 0,
+                        color: '#1f2937',
+                        wordBreak: 'break-word',
+                      }}
+                    >
                       {source.name}
                     </Title>
 
@@ -1116,14 +2363,38 @@ const App: React.FC = () => {
                           marginBottom: 0,
                           color: '#374151',
                           maxWidth: 720,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          lineHeight: 1.6,
                         }}
                       >
-                        {source.content}
+                        {getShortText(source.content)}
                       </p>
                     )}
                   </div>
 
-                  <Space>
+                  <Space wrap>
+                    {source.type === 'text' && (
+                      <>
+                        <Button
+                          icon={<EyeOutlined />}
+                          onClick={() => handlePreviewTextSource(source)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Просмотр
+                        </Button>
+
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleDownloadTextSource(source)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Скачать
+                        </Button>
+                      </>
+                    )}
+
                     {source.type === 'file' && (
                       <>
                         <Button
@@ -1181,8 +2452,7 @@ const App: React.FC = () => {
       </>
     );
   };
-
-  const renderLinksPage = () => {
+    const renderLinksPage = () => {
     if (!activeProject) {
       return (
         <>
@@ -1320,7 +2590,852 @@ const App: React.FC = () => {
       </>
     );
   };
-    const renderProjectPage = () => {
+
+  const renderChecklistsPage = () => {
+    const tableHeaderCellStyle: React.CSSProperties = {
+      border: '1px solid #d1d5db',
+      padding: 8,
+      background: '#f8fafc',
+      textAlign: 'center',
+      verticalAlign: 'middle',
+      fontWeight: 700,
+    };
+
+    const tableCellStyle: React.CSSProperties = {
+      border: '1px solid #d1d5db',
+      padding: 8,
+      verticalAlign: 'top',
+      background: '#ffffff',
+    };
+
+
+    const startChecklistColumnResize = (
+      columnKey: ChecklistColumnKey,
+      event: React.MouseEvent<HTMLDivElement>
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startX = event.clientX;
+      const startWidth = checklistColumnWidths[columnKey];
+      const minWidths: ChecklistColumnWidths = {
+        number: 48,
+        description: 260,
+        status: 150,
+        resolution: 320,
+        bugReport: 150,
+        photos: 170,
+      };
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const nextWidth = Math.max(minWidths[columnKey], startWidth + moveEvent.clientX - startX);
+
+        setChecklistColumnWidths((prevWidths) => ({
+          ...prevWidths,
+          [columnKey]: nextWidth,
+        }));
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    const renderResizableChecklistHeader = (
+      columnKey: ChecklistColumnKey,
+      title: string,
+      style?: React.CSSProperties
+    ) => (
+      <th
+        style={{
+          ...tableHeaderCellStyle,
+          ...style,
+          width: checklistColumnWidths[columnKey],
+          position: 'relative',
+          userSelect: 'none',
+        }}
+      >
+        {title}
+
+        <div
+          onMouseDown={(event) => startChecklistColumnResize(columnKey, event)}
+          title="Потяните, чтобы изменить ширину"
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: -3,
+            width: 8,
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 2,
+          }}
+        />
+      </th>
+    );
+
+    if (!activeProject) {
+      return (
+        <>
+          <Title level={1} style={{ margin: 0, fontSize: 36, fontWeight: 700, color: '#002E5F' }}>
+            Чек листы
+          </Title>
+
+          <p style={{ fontSize: 18, color: '#555', marginTop: 20 }}>
+            Сначала выберите или создайте проект.
+          </p>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Title level={1} style={{ margin: 0, fontSize: 36, fontWeight: 700, color: '#002E5F' }}>
+          Чек листы проекта <span style={{ color: '#0078d4' }}>{activeProject.name}</span>
+        </Title>
+
+        <Space style={{ marginTop: 28, marginBottom: 30 }}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setIsChecklistModalVisible(true)}
+            style={{
+              background: '#0078d4',
+              borderColor: '#0078d4',
+              height: 42,
+              borderRadius: 10,
+              fontWeight: 600,
+            }}
+          >
+            Создать чек-лист
+          </Button>
+        </Space>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 'none' }}>
+          {activeProjectChecklists.length === 0 ? (
+            <Card style={{ borderRadius: 14 }}>
+              <Text style={{ color: '#6b7280' }}>Чек-листы пока не созданы.</Text>
+            </Card>
+          ) : (
+            activeProjectChecklists.map((checklist, checklistIndex) => {
+              const isExpanded = expandedChecklistIds.includes(checklist.id);
+
+              return (
+                <Card
+                  key={checklist.id}
+                  style={{
+                    borderRadius: 14,
+                    border: checklist.isHidden ? '1px solid #f59e0b' : '1px solid #e5e7eb',
+                    background: checklist.isHidden ? '#fffbeb' : '#ffffff',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 20,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Space style={{ marginBottom: 8 }} wrap>
+                        <Tag color="cyan">{checklist.dataType}</Tag>
+
+                        {checklist.isHidden && (
+                          <Tag color="orange">Скрыто пользователем: {checklist.hiddenByName}</Tag>
+                        )}
+                      </Space>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleChecklistExpanded(checklist.id)}
+                        style={{
+                          padding: 0,
+                          border: 0,
+                          background: 'transparent',
+                          color: '#0078d4',
+                          fontSize: 20,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          wordBreak: 'break-word',
+                          textAlign: 'left',
+                        }}
+                      >
+                        {checklist.name}
+                      </button>
+
+                      <Text style={{ display: 'block', color: '#6b7280', marginTop: 6 }}>
+                        Автор: {checklist.authorName} · Дата: {checklist.createdAt}
+                      </Text>
+                    </div>
+
+                    <Space wrap>
+                      <Button
+                        onClick={() => handleMoveChecklist(checklist.id, 'up')}
+                        disabled={checklistIndex === 0}
+                        style={{ borderRadius: 10, fontWeight: 600 }}
+                      >
+                        Выше
+                      </Button>
+
+                      <Button
+                        onClick={() => handleMoveChecklist(checklist.id, 'down')}
+                        disabled={checklistIndex === activeProjectChecklists.length - 1}
+                        style={{ borderRadius: 10, fontWeight: 600 }}
+                      >
+                        Ниже
+                      </Button>
+
+                      <Button
+                        onClick={() => toggleChecklistExpanded(checklist.id)}
+                        style={{ borderRadius: 10, fontWeight: 600 }}
+                      >
+                        {isExpanded ? 'Свернуть' : 'Развернуть'}
+                      </Button>
+
+                      {checklist.isHidden && isAdmin ? (
+                        <Button
+                          icon={<RollbackOutlined />}
+                          onClick={() => handleRestoreChecklist(checklist.id)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Вернуть
+                        </Button>
+                      ) : (
+                        <Button
+                          icon={<EyeInvisibleOutlined />}
+                          onClick={() => handleHideChecklist(checklist.id)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Скрыть
+                        </Button>
+                      )}
+
+                      {isAdmin && (
+                        <Button
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteChecklist(checklist.id)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Удалить
+                        </Button>
+                      )}
+                    </Space>
+                  </div>
+
+                  {isExpanded && (
+                    <div
+                      style={{
+                        marginTop: 20,
+                        padding: 18,
+                        borderRadius: 14,
+                        background: '#ffffff',
+                        border: '1px solid #e5e7eb',
+                      }}
+                    >
+                      <div style={{ overflowX: 'auto', width: '100%' }}>
+                        <table
+                          style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            tableLayout: 'fixed',
+                            minWidth:
+                              checklistColumnWidths.number +
+                              checklistColumnWidths.description +
+                              checklistColumnWidths.status +
+                              checklistColumnWidths.resolution +
+                              checklistColumnWidths.bugReport +
+                              checklistColumnWidths.photos,
+                          }}
+                        >
+                          <colgroup>
+                            <col style={{ width: checklistColumnWidths.number }} />
+                            <col style={{ width: checklistColumnWidths.description }} />
+                            <col style={{ width: checklistColumnWidths.status }} />
+                            <col style={{ width: checklistColumnWidths.resolution }} />
+                            <col style={{ width: checklistColumnWidths.bugReport }} />
+                            <col style={{ width: checklistColumnWidths.photos }} />
+                          </colgroup>
+
+                          <thead>
+                            <tr>
+                              {renderResizableChecklistHeader('number', '№')}
+                              {renderResizableChecklistHeader('description', 'Описание')}
+                              {renderResizableChecklistHeader('status', 'Статус')}
+                              {renderResizableChecklistHeader('resolution', 'Разрешение и окружение')}
+                              {renderResizableChecklistHeader('bugReport', 'Ссылка на баг репорт')}
+                              {renderResizableChecklistHeader('photos', 'Фотографии')}
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {checklist.rows.map((row, rowIndex) => (
+                              <tr key={row.id}>
+                                <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                                    <strong>{row.number}</strong>
+                                    <Button
+                                      size="small"
+                                      onClick={() => handleMoveChecklistRow(checklist.id, row.id, 'up')}
+                                      disabled={rowIndex === 0}
+                                      style={{ borderRadius: 8, width: 32, padding: 0 }}
+                                    >
+                                      ↑
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      onClick={() => handleMoveChecklistRow(checklist.id, row.id, 'down')}
+                                      disabled={rowIndex === checklist.rows.length - 1}
+                                      style={{ borderRadius: 8, width: 32, padding: 0 }}
+                                    >
+                                      ↓
+                                    </Button>
+                                    <Button
+                                      danger
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      onClick={() => handleDeleteChecklistRow(checklist.id, row.id)}
+                                      style={{ borderRadius: 8, width: 32 }}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td style={tableCellStyle}>
+                                  <TextArea
+                                    value={row.description}
+                                    onChange={(event) =>
+                                      handleUpdateChecklistRowDescription(
+                                        checklist.id,
+                                        row.id,
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="Введите описание проверки"
+                                    autoSize={{ minRows: 3, maxRows: 8 }}
+                                    style={{ resize: 'none', minHeight: 92, width: '100%' }}
+                                  />
+                                </td>
+
+                                <td style={tableCellStyle}>
+                                  <Select
+                                    value={row.status}
+                                    options={checklistStatusOptions}
+                                    onChange={(value) =>
+                                      handleUpdateChecklistRowStatus(checklist.id, row.id, value)
+                                    }
+                                    style={{ width: '100%' }}
+                                  />
+                                </td>
+
+                                <td style={tableCellStyle}>
+                                  <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', overflowX: 'auto', paddingBottom: 4 }}>
+                                    {row.resolutions.map((resolution) => (
+                                      <div
+                                        key={resolution.id}
+                                        style={{
+                                          minWidth: 360,
+                                          border: '1px solid #e5e7eb',
+                                          borderRadius: 10,
+                                          overflow: 'hidden',
+                                          background: '#f9fafb',
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: 'flex',
+                                            gap: 8,
+                                            alignItems: 'center',
+                                            padding: 8,
+                                            borderBottom: '1px solid #e5e7eb',
+                                            background: '#f8fafc',
+                                          }}
+                                        >
+                                          <Input
+                                            value={resolution.name}
+                                            onChange={(event) =>
+                                              handleUpdateChecklistResolutionName(
+                                                checklist.id,
+                                                row.id,
+                                                resolution.id,
+                                                event.target.value
+                                              )
+                                            }
+                                            placeholder="Введите разрешение"
+                                            style={{ textAlign: 'center', fontWeight: 700 }}
+                                          />
+
+                                          <Button
+                                            danger
+                                            size="small"
+                                            icon={<DeleteOutlined />}
+                                            onClick={() =>
+                                              handleDeleteChecklistResolution(checklist.id, row.id, resolution.id)
+                                            }
+                                            style={{ borderRadius: 8, flexShrink: 0 }}
+                                          />
+                                        </div>
+
+                                        <div
+                                          style={{
+                                            display: 'flex',
+                                            gap: 8,
+                                            alignItems: 'center',
+                                            padding: 8,
+                                            overflowX: 'auto',
+                                          }}
+                                        >
+                                          {resolution.environments.map((environment) => (
+                                            <div key={environment.id} style={{ minWidth: 130, flexShrink: 0 }}>
+                                              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                                <Input
+                                                  value={environment.name}
+                                                  onChange={(event) =>
+                                                    handleUpdateChecklistEnvironmentName(
+                                                      checklist.id,
+                                                      row.id,
+                                                      resolution.id,
+                                                      environment.id,
+                                                      event.target.value
+                                                    )
+                                                  }
+                                                  placeholder="Введите окружение"
+                                                  style={{ textAlign: 'center', fontWeight: 600 }}
+                                                />
+
+                                                <Button
+                                                  danger
+                                                  size="small"
+                                                  icon={<DeleteOutlined />}
+                                                  onClick={() =>
+                                                    handleDeleteChecklistEnvironment(
+                                                      checklist.id,
+                                                      row.id,
+                                                      resolution.id,
+                                                      environment.id
+                                                    )
+                                                  }
+                                                  style={{ borderRadius: 8, flexShrink: 0 }}
+                                                />
+                                              </div>
+
+                                              <Input
+                                                value={row.environmentValues[environment.id] || ''}
+                                                onChange={(event) =>
+                                                  handleUpdateChecklistEnvironmentValue(
+                                                    checklist.id,
+                                                    row.id,
+                                                    environment.id,
+                                                    event.target.value
+                                                  )
+                                                }
+                                                placeholder=""
+                                                style={{ minHeight: 38 }}
+                                              />
+                                            </div>
+                                          ))}
+
+                                          <Button
+                                            size="small"
+                                            onClick={() => handleAddChecklistEnvironment(checklist.id, row.id, resolution.id)}
+                                            style={{ borderRadius: 8, fontWeight: 600, flexShrink: 0 }}
+                                          >
+                                            Добавить окружение
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+
+                                    <Button
+                                      onClick={() => handleAddChecklistResolution(checklist.id, row.id)}
+                                      style={{
+                                        borderRadius: 10,
+                                        fontWeight: 600,
+                                        whiteSpace: 'normal',
+                                        height: 'auto',
+                                        minHeight: 92,
+                                        width: 180,
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      Добавить вкладку с разрешением и браузером
+                                    </Button>
+                                  </div>
+                                </td>
+
+                                <td style={tableCellStyle}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {row.bugReportName ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <a
+                                          onClick={() => openBugReportFromChecklist(row.bugReportId)}
+                                          style={{ color: '#0078d4', fontWeight: 600, cursor: 'pointer', wordBreak: 'break-word' }}
+                                        >
+                                          {row.bugReportName}
+                                        </a>
+
+                                        <Button
+                                          danger
+                                          size="small"
+                                          icon={<DeleteOutlined />}
+                                          onClick={() => handleDetachBugReportFromChecklistRow(checklist.id, row.id)}
+                                          style={{ borderRadius: 8, flexShrink: 0 }}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <Text style={{ color: '#6b7280' }}>Не указана</Text>
+                                    )}
+
+                                    <Button
+                                      size="small"
+                                      onClick={() => openChecklistBugReportModal(checklist.id, row.id)}
+                                      style={{ borderRadius: 8, fontWeight: 600, alignSelf: 'flex-start' }}
+                                    >
+                                      {row.bugReportName ? 'Изменить баг-репорт' : 'Прикрепить баг-репорт'}
+                                    </Button>
+                                  </div>
+                                </td>
+
+                                <td style={tableCellStyle}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {row.attachments.length > 0 ? (
+                                      row.attachments.map((attachment) => (
+                                        <div
+                                          key={attachment.id}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                                        >
+                                          <a
+                                            onClick={() => handlePreviewChecklistAttachment(attachment)}
+                                            style={{ color: '#0078d4', fontWeight: 600, cursor: 'pointer', wordBreak: 'break-word' }}
+                                          >
+                                            {attachment.name}
+                                          </a>
+
+                                          <Button
+                                            danger
+                                            size="small"
+                                            icon={<DeleteOutlined />}
+                                            onClick={() =>
+                                              handleDeleteChecklistAttachment(checklist.id, row.id, attachment.id)
+                                            }
+                                            style={{ borderRadius: 8, flexShrink: 0 }}
+                                          />
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <Text style={{ color: '#6b7280' }}>Не добавлена</Text>
+                                    )}
+
+                                    <Button
+                                      size="small"
+                                      onClick={() => openChecklistPhotoChoiceModal(checklist.id, row.id)}
+                                      style={{ borderRadius: 8, fontWeight: 600, alignSelf: 'flex-start' }}
+                                    >
+                                      Добавить фотографию
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <Button
+                        icon={<PlusOutlined />}
+                        onClick={() => handleAddChecklistRow(checklist.id)}
+                        style={{ marginTop: 16, borderRadius: 10, fontWeight: 600 }}
+                      >
+                        Добавить строку
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      </>
+    );
+  };
+
+
+  const renderBugReportsPage = () => {
+    const fieldLabelStyle: React.CSSProperties = {
+      display: 'block',
+      marginBottom: 6,
+      fontWeight: 700,
+      color: '#374151',
+    };
+
+    if (!activeProject) {
+      return (
+        <>
+          <Title level={1} style={{ margin: 0, fontSize: 36, fontWeight: 700, color: '#002E5F' }}>
+            Баг репорты
+          </Title>
+
+          <p style={{ fontSize: 18, color: '#555', marginTop: 20 }}>
+            Сначала выберите или создайте проект.
+          </p>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Title level={1} style={{ margin: 0, fontSize: 36, fontWeight: 700, color: '#002E5F' }}>
+          Баг репорты проекта <span style={{ color: '#0078d4' }}>{activeProject.name}</span>
+        </Title>
+
+        <Space style={{ marginTop: 28, marginBottom: 30 }}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => openBugReportCreateModal()}
+            style={{
+              background: '#0078d4',
+              borderColor: '#0078d4',
+              height: 42,
+              borderRadius: 10,
+              fontWeight: 600,
+            }}
+          >
+            Создать баг-репорт
+          </Button>
+        </Space>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 'none' }}>
+          {activeProjectBugReports.length === 0 ? (
+            <Card style={{ borderRadius: 14 }}>
+              <Text style={{ color: '#6b7280' }}>Баг-репорты пока не созданы.</Text>
+            </Card>
+          ) : (
+            activeProjectBugReports.map((bugReport, bugReportIndex) => {
+              const isExpanded = expandedBugReportIds.includes(bugReport.id);
+
+              return (
+                <Card
+                  key={bugReport.id}
+                  style={{
+                    borderRadius: 14,
+                    border: bugReport.isHidden ? '1px solid #f59e0b' : '1px solid #e5e7eb',
+                    background: bugReport.isHidden ? '#fffbeb' : '#ffffff',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 20,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Space style={{ marginBottom: 8 }} wrap>
+                        <Tag color="red">Баг-репорт</Tag>
+                        <Tag color="blue">{getBugReportStatusLabel(bugReport.status)}</Tag>
+                        <Tag color={bugReport.priority === 'critical' ? 'red' : bugReport.priority === 'high' ? 'orange' : 'green'}>
+                          {getBugReportPriorityLabel(bugReport.priority)}
+                        </Tag>
+
+                        {bugReport.isHidden && (
+                          <Tag color="orange">Скрыто пользователем: {bugReport.hiddenByName}</Tag>
+                        )}
+                      </Space>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleBugReportExpanded(bugReport.id)}
+                        style={{
+                          padding: 0,
+                          border: 0,
+                          background: 'transparent',
+                          color: '#0078d4',
+                          fontSize: 20,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          wordBreak: 'break-word',
+                          textAlign: 'left',
+                        }}
+                      >
+                        {bugReport.name}
+                      </button>
+
+                      <Text style={{ display: 'block', color: '#6b7280', marginTop: 6 }}>
+                        Автор: {bugReport.authorName} · Дата: {bugReport.createdAt}
+                      </Text>
+                    </div>
+
+                    <Space wrap>
+                      <Button
+                        onClick={() => handleMoveBugReport(bugReport.id, 'up')}
+                        disabled={bugReportIndex === 0}
+                        style={{ borderRadius: 10, fontWeight: 600 }}
+                      >
+                        Выше
+                      </Button>
+
+                      <Button
+                        onClick={() => handleMoveBugReport(bugReport.id, 'down')}
+                        disabled={bugReportIndex === activeProjectBugReports.length - 1}
+                        style={{ borderRadius: 10, fontWeight: 600 }}
+                      >
+                        Ниже
+                      </Button>
+
+                      <Button
+                        onClick={() => toggleBugReportExpanded(bugReport.id)}
+                        style={{ borderRadius: 10, fontWeight: 600 }}
+                      >
+                        {isExpanded ? 'Свернуть' : 'Развернуть'}
+                      </Button>
+
+                      {bugReport.isHidden && isAdmin ? (
+                        <Button
+                          icon={<RollbackOutlined />}
+                          onClick={() => handleRestoreBugReport(bugReport.id)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Вернуть
+                        </Button>
+                      ) : (
+                        <Button
+                          icon={<EyeInvisibleOutlined />}
+                          onClick={() => handleHideBugReport(bugReport.id)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Скрыть
+                        </Button>
+                      )}
+
+                      {isAdmin && (
+                        <Button
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteBugReport(bugReport.id)}
+                          style={{ borderRadius: 10, fontWeight: 600 }}
+                        >
+                          Удалить
+                        </Button>
+                      )}
+                    </Space>
+                  </div>
+
+                  {isExpanded && (
+                    <div
+                      style={{
+                        marginTop: 20,
+                        padding: 18,
+                        borderRadius: 14,
+                        background: '#ffffff',
+                        border: '1px solid #e5e7eb',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 220px 220px', gap: 16 }}>
+                        <div>
+                          <Text style={fieldLabelStyle}>Название баг репорта</Text>
+                          <Input
+                            value={bugReport.name}
+                            onChange={(event) =>
+                              handleUpdateBugReportField(bugReport.id, 'name', event.target.value)
+                            }
+                            placeholder="Введите название баг-репорта"
+                          />
+                        </div>
+
+                        <div>
+                          <Text style={fieldLabelStyle}>Статус</Text>
+                          <Select
+                            value={bugReport.status}
+                            options={bugReportStatusOptions}
+                            onChange={(value) => handleUpdateBugReportField(bugReport.id, 'status', value)}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+
+                        <div>
+                          <Text style={fieldLabelStyle}>Приоритет</Text>
+                          <Select
+                            value={bugReport.priority}
+                            options={bugReportPriorityOptions}
+                            onChange={(value) => handleUpdateBugReportField(bugReport.id, 'priority', value)}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 16, marginTop: 16 }}>
+                        <div>
+                          <Text style={fieldLabelStyle}>Предусловие</Text>
+                          <TextArea
+                            value={bugReport.prerequisite}
+                            onChange={(event) =>
+                              handleUpdateBugReportField(bugReport.id, 'prerequisite', event.target.value)
+                            }
+                            placeholder="Введите предусловие"
+                            autoSize={{ minRows: 4, maxRows: 10 }}
+                          />
+                        </div>
+
+                        <div>
+                          <Text style={fieldLabelStyle}>Описание шагов</Text>
+                          <TextArea
+                            value={bugReport.stepsDescription}
+                            onChange={(event) =>
+                              handleUpdateBugReportField(bugReport.id, 'stepsDescription', event.target.value)
+                            }
+                            placeholder="Введите описание шагов"
+                            autoSize={{ minRows: 4, maxRows: 10 }}
+                          />
+                        </div>
+
+                        <div>
+                          <Text style={fieldLabelStyle}>Ожидаемый результат</Text>
+                          <TextArea
+                            value={bugReport.expectedResult}
+                            onChange={(event) =>
+                              handleUpdateBugReportField(bugReport.id, 'expectedResult', event.target.value)
+                            }
+                            placeholder="Введите ожидаемый результат"
+                            autoSize={{ minRows: 4, maxRows: 10 }}
+                          />
+                        </div>
+
+                        <div>
+                          <Text style={fieldLabelStyle}>Фактический результат</Text>
+                          <TextArea
+                            value={bugReport.actualResult}
+                            onChange={(event) =>
+                              handleUpdateBugReportField(bugReport.id, 'actualResult', event.target.value)
+                            }
+                            placeholder="Введите фактический результат"
+                            autoSize={{ minRows: 4, maxRows: 10 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      </>
+    );
+  };
+
+  const renderProjectPage = () => {
     if (!activeProject) {
       return (
         <>
@@ -1468,6 +3583,14 @@ const App: React.FC = () => {
 
     if (selectedMenuKey === '6') {
       return renderSourcesPage();
+    }
+
+    if (selectedMenuKey === '2') {
+      return renderBugReportsPage();
+    }
+
+    if (selectedMenuKey === '3') {
+      return renderChecklistsPage();
     }
 
     if (!activeProject) {
@@ -1738,6 +3861,8 @@ const App: React.FC = () => {
               placeholder="Имя пользователя"
               value={registerName}
               onChange={(e) => setRegisterName(e.target.value)}
+              maxLength={20}
+              showCount
               style={{ marginBottom: 12 }}
               autoFocus
             />
@@ -1794,6 +3919,8 @@ const App: React.FC = () => {
           placeholder="Введите новое имя"
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
+          maxLength={20}
+          showCount
           onPressEnter={handleSaveNewName}
           autoFocus
         />
@@ -1995,6 +4122,272 @@ const App: React.FC = () => {
       </Modal>
 
       <Modal
+        title={selectedChecklistIdForBugReport ? 'Создание баг-репорта для чек-листа' : 'Создание баг-репорта'}
+        open={isBugReportModalVisible}
+        onCancel={closeBugReportCreateModal}
+        onOk={handleCreateBugReport}
+        okText="Создать"
+        cancelText="Отмена"
+        width={900}
+        centered
+      >
+        <Input
+          placeholder="Название баг репорта"
+          value={bugReportName}
+          onChange={(e) => setBugReportName(e.target.value)}
+          style={{ marginBottom: 12 }}
+          autoFocus
+        />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <Select
+            value={bugReportStatus}
+            options={bugReportStatusOptions}
+            onChange={setBugReportStatus}
+            placeholder="Статус"
+          />
+
+          <Select
+            value={bugReportPriority}
+            options={bugReportPriorityOptions}
+            onChange={setBugReportPriority}
+            placeholder="Приоритет"
+          />
+        </div>
+
+        <TextArea
+          placeholder="Предусловие"
+          value={bugReportPrerequisite}
+          onChange={(e) => setBugReportPrerequisite(e.target.value)}
+          rows={3}
+          style={{ marginBottom: 12 }}
+        />
+
+        <TextArea
+          placeholder="Описание шагов"
+          value={bugReportStepsDescription}
+          onChange={(e) => setBugReportStepsDescription(e.target.value)}
+          rows={4}
+          style={{ marginBottom: 12 }}
+        />
+
+        <TextArea
+          placeholder="Ожидаемый результат"
+          value={bugReportExpectedResult}
+          onChange={(e) => setBugReportExpectedResult(e.target.value)}
+          rows={3}
+          style={{ marginBottom: 12 }}
+        />
+
+        <TextArea
+          placeholder="Фактический результат"
+          value={bugReportActualResult}
+          onChange={(e) => setBugReportActualResult(e.target.value)}
+          rows={3}
+        />
+      </Modal>
+
+      <Modal
+        title="Прикрепление баг-репорта"
+        open={isChecklistBugReportModalVisible}
+        onCancel={closeChecklistBugReportModal}
+        footer={null}
+        width={800}
+        centered
+      >
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() =>
+              selectedChecklistIdForBugReport && selectedChecklistRowIdForBugReport
+                ? openBugReportCreateModal(selectedChecklistIdForBugReport, selectedChecklistRowIdForBugReport)
+                : openBugReportCreateModal()
+            }
+            style={{ background: '#0078d4', borderColor: '#0078d4', borderRadius: 10, fontWeight: 600 }}
+          >
+            Создать новый баг-репорт
+          </Button>
+        </Space>
+
+        {activeProjectBugReports.length === 0 ? (
+          <Text style={{ color: '#6b7280' }}>В проекте пока нет баг-репортов.</Text>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {activeProjectBugReports.map((bugReport) => (
+              <Card key={bugReport.id} size="small" style={{ borderRadius: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <a
+                      onClick={() => openBugReportFromChecklist(bugReport.id)}
+                      style={{ color: '#0078d4', fontWeight: 700, cursor: 'pointer', wordBreak: 'break-word' }}
+                    >
+                      {bugReport.name}
+                    </a>
+
+                    <div style={{ marginTop: 6 }}>
+                      <Tag color="blue">{getBugReportStatusLabel(bugReport.status)}</Tag>
+                      <Tag color={bugReport.priority === 'critical' ? 'red' : bugReport.priority === 'high' ? 'orange' : 'green'}>
+                        {getBugReportPriorityLabel(bugReport.priority)}
+                      </Tag>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="primary"
+                    onClick={() => handleAttachExistingBugReport(bugReport)}
+                    style={{ borderRadius: 10, fontWeight: 600, background: '#0078d4', borderColor: '#0078d4', flexShrink: 0 }}
+                  >
+                    Прикрепить
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        title="Создание чек-листа"
+        open={isChecklistModalVisible}
+        onCancel={() => {
+          setIsChecklistModalVisible(false);
+          resetChecklistCreateForm();
+        }}
+        onOk={handleCreateChecklist}
+        okText="Создать"
+        cancelText="Отмена"
+        centered
+      >
+        <Input
+          placeholder="Название чек-листа"
+          value={checklistName}
+          onChange={(e) => setChecklistName(e.target.value)}
+          style={{ marginBottom: 12 }}
+          autoFocus
+        />
+
+        <Input
+          placeholder="Тип данных"
+          value={checklistDataType}
+          onChange={(e) => setChecklistDataType(e.target.value)}
+        />
+      </Modal>
+
+      <Modal
+        title="Добавление фотографии"
+        open={isChecklistPhotoChoiceModalVisible}
+        onCancel={closeChecklistPhotoModals}
+        footer={null}
+        centered
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 0' }}>
+          <Button
+            size="large"
+            block
+            onClick={openComputerPhotoModal}
+            style={{ borderRadius: 10, fontWeight: 600 }}
+          >
+            Добавить фотографию с компьютера
+          </Button>
+
+          <Button
+            size="large"
+            block
+            onClick={openSourcePhotoModal}
+            style={{ borderRadius: 10, fontWeight: 600 }}
+          >
+            Добавить фотографию из источников
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Добавление фотографии с компьютера"
+        open={isChecklistComputerPhotoModalVisible}
+        onCancel={closeChecklistPhotoModals}
+        onOk={handleAddChecklistPhotoFromComputer}
+        okText="Добавить"
+        cancelText="Отмена"
+        centered
+      >
+        <Dragger
+          multiple={false}
+          maxCount={1}
+          accept="image/*"
+          beforeUpload={(file) => {
+            setSelectedChecklistPhotoFile(file);
+            return false;
+          }}
+          onRemove={() => {
+            setSelectedChecklistPhotoFile(null);
+            return true;
+          }}
+          fileList={
+            selectedChecklistPhotoFile
+              ? [
+                  {
+                    uid: 'selected-checklist-photo',
+                    name: selectedChecklistPhotoFile.name,
+                    status: 'done',
+                  },
+                ]
+              : []
+          }
+        >
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+
+          <p className="ant-upload-text">
+            Нажмите или перетащите фотографию в эту область
+          </p>
+
+          <p className="ant-upload-hint">
+            Фотография будет прикреплена к выбранной строке чек-листа.
+          </p>
+        </Dragger>
+      </Modal>
+
+      <Modal
+        title="Выбор фотографии из источников"
+        open={isChecklistSourcePhotoModalVisible}
+        onCancel={closeChecklistPhotoModals}
+        footer={null}
+        width={800}
+        centered
+      >
+        {activeProjectPhotoSources.length === 0 ? (
+          <Text style={{ color: '#6b7280' }}>В источниках нет фотографий.</Text>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {activeProjectPhotoSources.map((source) => (
+              <Card key={source.id} size="small" style={{ borderRadius: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <div>
+                    <a
+                      onClick={() => handlePreviewSourceFile(source)}
+                      style={{ color: '#0078d4', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {source.fileName || source.name}
+                    </a>
+                  </div>
+
+                  <Button
+                    type="primary"
+                    onClick={() => handleAddChecklistPhotoFromSource(source)}
+                    style={{ borderRadius: 10, fontWeight: 600, background: '#0078d4', borderColor: '#0078d4' }}
+                  >
+                    Добавить
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         title={previewSource?.name || 'Просмотр файла'}
         open={isPreviewModalVisible}
         onCancel={() => {
@@ -2005,7 +4398,25 @@ const App: React.FC = () => {
         width={900}
         centered
       >
-        {previewSource?.filePreviewUrl && previewSource.fileType?.startsWith('image/') ? (
+        {previewSource?.type === 'text' ? (
+          <div
+            style={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              padding: 16,
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              background: '#f9fafb',
+              color: '#374151',
+              lineHeight: 1.6,
+            }}
+          >
+            {previewSource.content}
+          </div>
+        ) : previewSource?.filePreviewUrl && previewSource.fileType?.startsWith('image/') ? (
           <img
             src={previewSource.filePreviewUrl}
             alt={previewSource.name}
